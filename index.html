@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="An interactive 3D cube with six animated tilt and twist controls." />
+  <title>Six Ways — 3D Cube</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --page: #101522;
+      --panel: rgba(24, 33, 51, 0.88);
+      --panel-border: rgba(255, 255, 255, 0.09);
+      --muted: #9ba8be;
+      --text: #f4f7ff;
+      --accent: #8bb8ff;
+      --cube-size: 190px;
+      --half-size: 95px;
+      --net-cell: 52px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 36px 20px 48px;
+      display: grid;
+      place-items: center;
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(ellipse at 50% 22%, rgba(72, 111, 180, 0.22), transparent 43%),
+        radial-gradient(ellipse at 12% 88%, rgba(82, 57, 143, 0.13), transparent 38%),
+        var(--page);
+    }
+
+    .app {
+      width: min(100%, 900px);
+    }
+
+    header { text-align: center; margin-bottom: 26px; }
+    .eyebrow {
+      margin: 0 0 9px;
+      color: var(--accent);
+      font-size: 0.72rem;
+      font-weight: 750;
+      letter-spacing: 0.19em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 6vw, 3.15rem);
+      line-height: 1.05;
+      letter-spacing: -0.055em;
+    }
+    .intro {
+      max-width: 530px;
+      margin: 13px auto 0;
+      color: var(--muted);
+      font-size: 0.98rem;
+      line-height: 1.6;
+    }
+
+    .workspace {
+      overflow: hidden;
+      border: 1px solid var(--panel-border);
+      border-radius: 24px;
+      background: linear-gradient(155deg, rgba(32, 44, 67, 0.94), var(--panel));
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.36), inset 0 1px rgba(255,255,255,0.035);
+    }
+
+    .scene {
+      min-height: 350px;
+      padding: 24px 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(34px, 6vw, 76px);
+      perspective: 850px;
+      perspective-origin: 50% 46%;
+      position: relative;
+      isolation: isolate;
+    }
+    .cube-column {
+      flex: 0 0 250px;
+      width: 250px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .cube-stage {
+      width: 250px;
+      height: 250px;
+      flex: 0 0 250px;
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+    .cube-stage::before {
+      content: "";
+      position: absolute;
+      width: 240px;
+      height: 58px;
+      left: 50%;
+      bottom: 26px;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.38);
+      filter: blur(27px);
+      border-radius: 50%;
+      z-index: -1;
+    }
+    .cube-net {
+      display: grid;
+      grid-template-columns: repeat(3, var(--net-cell));
+      grid-template-rows: repeat(4, var(--net-cell));
+      gap: 5px;
+      flex: 0 0 auto;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 13px;
+      background: rgba(8, 13, 23, 0.25);
+      box-shadow: inset 0 1px rgba(255,255,255,0.035);
+    }
+    .net-cell {
+      width: var(--net-cell);
+      height: var(--net-cell);
+      min-height: var(--net-cell);
+      padding: 0;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.68);
+      border-radius: 7px;
+      color: rgba(12, 20, 33, 0.9);
+      font: inherit;
+      font-size: 0.66rem;
+      font-weight: 850;
+      letter-spacing: 0.045em;
+      text-transform: uppercase;
+      text-align: center;
+      box-shadow: inset 0 0 14px rgba(255,255,255,0.15), inset 0 0 0 1px rgba(0,0,0,0.06);
+      transition: background-color 680ms cubic-bezier(0.2, 0.78, 0.2, 1), border-color 150ms ease, filter 150ms ease;
+      user-select: none;
+      cursor: default;
+    }
+    .net-cell:hover { transform: none; }
+    .net-cell:disabled { opacity: 1; cursor: default; }
+    .cube-net.is-training:not(.is-quiz) { opacity: 0.48; filter: grayscale(1); }
+    .cube-net.is-training .net-cell:not(.revealed) { background-color: #737d8d; color: #eef2f8; border-color: rgba(255,255,255,0.35); }
+    .cube-net.is-quiz .net-cell:not(:disabled) { cursor: pointer; }
+    .cube-net.is-quiz .net-cell:not(:disabled):hover { filter: brightness(1.16); border-color: #fff; }
+    .net-cell.revealed { color: rgba(12, 20, 33, 0.9); }
+
+    .move-sequence {
+      width: 100%;
+      margin: -2px 0 0;
+      padding: 10px 13px;
+      list-style: none;
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 11px;
+      background: rgba(8, 13, 23, 0.28);
+      color: #dce7f8;
+      font-size: 0.76rem;
+      line-height: 1.55;
+      text-align: left;
+    }
+    .move-sequence li + li { margin-top: 3px; }
+    .net-back   { grid-column: 2; grid-row: 1; }
+    .net-top    { grid-column: 2; grid-row: 2; }
+    .net-left   { grid-column: 1; grid-row: 3; }
+    .net-front  { grid-column: 2; grid-row: 3; }
+    .net-right  { grid-column: 3; grid-row: 3; }
+    .net-bottom { grid-column: 2; grid-row: 4; }
+
+    .cube {
+      width: var(--cube-size);
+      height: var(--cube-size);
+      position: relative;
+      transform-style: preserve-3d;
+      transform: matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+      transition: transform 680ms cubic-bezier(0.2, 0.78, 0.2, 1);
+      will-change: transform;
+    }
+
+    .face {
+      position: absolute;
+      inset: 0;
+      border: 2px solid rgba(255, 255, 255, 0.68);
+      border-radius: 10px;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      box-shadow: inset 0 0 28px rgba(255,255,255,0.14), inset 0 0 0 1px rgba(0,0,0,0.07);
+      transition: background-color 360ms ease, border-color 360ms ease, box-shadow 360ms ease;
+    }
+    /* Hide every face color once the practice moves are finished. */
+    .cube.is-greyed .face {
+      background: #737d8d;
+      border-color: rgba(255, 255, 255, 0.35);
+      box-shadow: inset 0 0 18px rgba(255,255,255,0.08), inset 0 0 0 1px rgba(0,0,0,0.08);
+    }
+    .front  { background: #55c7ed; transform: translateZ(var(--half-size)); }
+    .back   { background: #ff9e62; transform: rotateY(180deg) translateZ(var(--half-size)); }
+    .right  { background: #fa6f83; transform: rotateY(90deg) translateZ(var(--half-size)); }
+    .left   { background: #ad91f4; transform: rotateY(-90deg) translateZ(var(--half-size)); }
+    .top    { background: #8bdaa7; transform: rotateX(90deg) translateZ(var(--half-size)); }
+    .bottom { background: #f5d36f; transform: rotateX(-90deg) translateZ(var(--half-size)); }
+
+    .status-bar {
+      min-height: 47px;
+      padding: 0 22px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      color: var(--muted);
+      font-size: 0.83rem;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #83d9a3;
+      box-shadow: 0 0 12px rgba(131, 217, 163, 0.7);
+    }
+    .move-count { font-variant-numeric: tabular-nums; }
+
+    .training-entry { margin-top: 17px; }
+    .training-launch {
+      min-height: 43px;
+      width: 100%;
+      justify-content: center;
+      border-color: rgba(139, 184, 255, 0.38);
+      background: rgba(139, 184, 255, 0.10);
+      font-size: 0.84rem;
+      font-weight: 760;
+      text-align: center;
+    }
+    .training-launch:disabled { opacity: 0.62; cursor: default; transform: none; }
+    .training-panel {
+      display: grid;
+      gap: 12px;
+      margin-top: 13px;
+      padding: 16px;
+      border: 1px solid rgba(139, 184, 255, 0.22);
+      border-radius: 14px;
+      background: rgba(8, 13, 23, 0.32);
+    }
+    .training-panel h3 { margin: 0; font-size: 0.88rem; }
+    .training-copy { margin: 0; color: var(--muted); font-size: 0.77rem; line-height: 1.5; }
+    .move-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+    .choice-button {
+      min-height: 42px;
+      padding: 8px;
+      justify-content: center;
+      text-align: center;
+      font-size: 0.82rem;
+      font-weight: 750;
+    }
+    .question-header { display: flex; align-items: center; gap: 11px; }
+    .color-swatch {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      border: 2px solid rgba(255,255,255,0.85);
+      border-radius: 8px;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+    }
+    .question-text { display: grid; gap: 3px; }
+    .question-text strong { font-size: 0.9rem; }
+    .question-text span, .quiz-progress { color: var(--muted); font-size: 0.74rem; }
+    .quiz-feedback {
+      min-height: 36px;
+      margin: 0;
+      color: #dce7f8;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    .quiz-feedback.correct { color: #91e0ad; }
+    .quiz-feedback.incorrect { color: #ffb0ae; }
+    .quiz-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .quiz-next {
+      min-height: 39px;
+      padding: 8px 14px;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 730;
+    }
+    .direction-controls.is-locked { opacity: 0.38; pointer-events: none; }
+    .direction-controls.is-locked button { cursor: not-allowed; }
+
+    .controls {
+      padding: 22px;
+      border-top: 1px solid var(--panel-border);
+      background: rgba(8, 13, 23, 0.22);
+    }
+    .controls-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    h2 {
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 750;
+      letter-spacing: 0.01em;
+    }
+    .hint { color: var(--muted); font-size: 0.75rem; }
+    .button-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .move-option {
+      min-width: 0;
+      min-height: 68px;
+      padding: 8px 10px 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(178, 199, 232, 0.16);
+      border-radius: 13px;
+      background: rgba(255,255,255,0.045);
+      transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+    }
+    .move-option:hover {
+      background: rgba(139, 184, 255, 0.12);
+      border-color: rgba(139, 184, 255, 0.48);
+      transform: translateY(-2px);
+    }
+    .move-option:focus-within {
+      outline: 3px solid rgba(139, 184, 255, 0.65);
+      outline-offset: 2px;
+    }
+    .move-option .move-action {
+      min-width: 0;
+      min-height: 48px;
+      padding: 0;
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+    }
+    .move-option .move-action:hover,
+    .move-option .move-action:active {
+      border-color: transparent;
+      background: transparent;
+      transform: none;
+    }
+    .move-select {
+      width: 25px;
+      min-width: 25px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .training-move-checkbox {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .training-move-checkbox:disabled { cursor: not-allowed; }
+    button {
+      min-height: 68px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      border: 1px solid rgba(178, 199, 232, 0.16);
+      border-radius: 13px;
+      background: rgba(255,255,255,0.045);
+      color: var(--text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+      touch-action: manipulation;
+    }
+    button:hover {
+      background: rgba(139, 184, 255, 0.12);
+      border-color: rgba(139, 184, 255, 0.48);
+      transform: translateY(-2px);
+    }
+    button:active { transform: translateY(0) scale(0.985); }
+    button:focus-visible {
+      outline: 3px solid rgba(139, 184, 255, 0.85);
+      outline-offset: 3px;
+    }
+    .glyph {
+      width: 31px;
+      height: 31px;
+      flex: 0 0 31px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: rgba(139, 184, 255, 0.13);
+      color: #b9d3ff;
+      font-size: 1.18rem;
+      line-height: 1;
+    }
+    .button-copy { display: grid; gap: 3px; }
+    .button-title { font-size: 0.84rem; font-weight: 720; }
+    .button-subtitle { color: var(--muted); font-size: 0.7rem; }
+
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 15px;
+    }
+    .tip { margin: 0; color: var(--muted); font-size: 0.75rem; line-height: 1.5; }
+    .reset {
+      min-height: 38px;
+      padding: 8px 13px;
+      flex: 0 0 auto;
+      justify-content: center;
+      color: #d5e2f7;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .reset .glyph { width: 22px; height: 22px; flex-basis: 22px; font-size: 0.95rem; }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 580px) {
+      body { padding: 25px 12px 30px; }
+      header { margin-bottom: 20px; }
+      :root { --cube-size: 168px; --half-size: 84px; --net-cell: 44px; }
+      .scene { min-height: 0; padding: 22px 12px 25px; flex-direction: column; gap: 12px; }
+      .cube-column { width: 215px; flex-basis: 215px; }
+      .cube-stage { width: 215px; height: 215px; flex-basis: 215px; }
+      .cube-stage::before { width: 205px; bottom: 20px; }
+      .cube-net { gap: 4px; padding: 6px; }
+      .net-cell { font-size: 0.58rem; }
+      .controls { padding: 17px 14px; }
+      .button-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .move-option { min-height: 62px; padding: 7px 7px 7px 9px; gap: 5px; }
+      .move-option .move-action { min-height: 44px; padding: 0; gap: 7px; }
+      .move-select { width: 22px; min-width: 22px; }
+      button { min-height: 62px; padding: 9px; gap: 8px; }
+      .button-title { font-size: 0.8rem; }
+      .controls-heading { align-items: flex-start; flex-wrap: wrap; }
+      .status-bar { padding-inline: 15px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <p class="eyebrow">Interactive 3D experiment</p>
+      <h1>Six ways to move a cube</h1>
+      <p class="intro">Choose a direction and watch the cube turn. Every move rotates the whole cube by a quarter-turn, keeping the colored faces in their new positions.</p>
+    </header>
+
+    <section class="workspace" aria-label="Interactive 3D cube">
+      <div class="scene">
+        <div class="cube-column">
+          <div class="cube-stage">
+            <div class="cube" id="cube" role="img" aria-label="A plain six-sided cube with a different color on each face.">
+              <div class="face front"></div>
+              <div class="face back"></div>
+              <div class="face right"></div>
+              <div class="face left"></div>
+              <div class="face top"></div>
+              <div class="face bottom"></div>
+            </div>
+          </div>
+          <ol class="move-sequence" id="moveSequence" aria-label="Training move sequence" hidden></ol>
+        </div>
+
+        <div class="cube-net" id="cubeNet" role="group" aria-label="Unfolded cube. In training, select the side where the requested color is located.">
+          <button type="button" class="net-cell net-back" data-position="back" disabled>Back</button>
+          <button type="button" class="net-cell net-top" data-position="top" disabled>Top</button>
+          <button type="button" class="net-cell net-left" data-position="left" disabled>Left</button>
+          <button type="button" class="net-cell net-front" data-position="front" disabled>Front</button>
+          <button type="button" class="net-cell net-right" data-position="right" disabled>Right</button>
+          <button type="button" class="net-cell net-bottom" data-position="bottom" disabled>Bottom</button>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <span class="status"><span class="status-dot" aria-hidden="true"></span><span id="lastMove" aria-live="polite">Ready — choose a move</span></span>
+        <span class="move-count">Moves: <strong id="moveCount">0</strong></span>
+      </div>
+
+      <div class="controls">
+        <div class="controls-heading">
+          <h2>Choose a move</h2>
+          <span class="hint">and select which moves to train.</span>
+        </div>
+        <div class="direction-controls" id="directionControls">
+        <div class="button-grid">
+          <div class="move-option">
+            <button type="button" class="move-action" data-move="tiltLeft" aria-label="Tilt left 90 degrees">
+              <span class="glyph" aria-hidden="true">↶</span>
+              <span class="button-copy"><span class="button-title">Tilt left</span><span class="button-subtitle">Top → left</span></span>
+            </button>
+            <label class="move-select" title="Include tilt left in training">
+              <input class="training-move-checkbox" type="checkbox" data-training-move="tiltLeft" checked aria-label="Include tilt left in imagination training">
+            </label>
+          </div>
+          <div class="move-option">
+            <button type="button" class="move-action" data-move="tiltRight" aria-label="Tilt right 90 degrees">
+              <span class="glyph" aria-hidden="true">↷</span>
+              <span class="button-copy"><span class="button-title">Tilt right</span><span class="button-subtitle">Top → right</span></span>
+            </button>
+            <label class="move-select" title="Include tilt right in training">
+              <input class="training-move-checkbox" type="checkbox" data-training-move="tiltRight" checked aria-label="Include tilt right in imagination training">
+            </label>
+          </div>
+          <div class="move-option">
+            <button type="button" class="move-action" data-move="tiltForward" aria-label="Tilt forward 90 degrees">
+              <span class="glyph" aria-hidden="true">↑</span>
+              <span class="button-copy"><span class="button-title">Tilt forward</span><span class="button-subtitle">Top → front</span></span>
+            </button>
+            <label class="move-select" title="Include tilt forward in training">
+              <input class="training-move-checkbox" type="checkbox" data-training-move="tiltForward" checked aria-label="Include tilt forward in imagination training">
+            </label>
+          </div>
+          <div class="move-option">
+            <button type="button" class="move-action" data-move="tiltBackward" aria-label="Tilt backward 90 degrees">
+              <span class="glyph" aria-hidden="true">↓</span>
+              <span class="button-copy"><span class="button-title">Tilt backward</span><span class="button-subtitle">Top → back</span></span>
+            </button>
+            <label class="move-select" title="Include tilt backward in training">
+              <input class="training-move-checkbox" type="checkbox" data-training-move="tiltBackward" checked aria-label="Include tilt backward in imagination training">
+            </label>
+          </div>
+          <div class="move-option">
+            <button type="button" class="move-action" data-move="twistLeft" aria-label="Twist left 90 degrees">
+              <span class="glyph" aria-hidden="true">⟲</span>
+              <span class="button-copy"><span class="button-title">Twist left</span><span class="button-subtitle">Front → left</span></span>
+            </button>
+            <label class="move-select" title="Include twist left in training">
+              <input class="training-move-checkbox" type="checkbox" data-training-move="twistLeft" checked aria-label="Include twist left in imagination training">
+            </label>
+          </div>
+          <div class="move-option">
+            <button type="button" class="move-action" data-move="twistRight" aria-label="Twist right 90 degrees">
+              <span class="glyph" aria-hidden="true">⟳</span>
+              <span class="button-copy"><span class="button-title">Twist right</span><span class="button-subtitle">Front → right</span></span>
+            </button>
+            <label class="move-select" title="Include twist right in training">
+              <input class="training-move-checkbox" type="checkbox" data-training-move="twistRight" checked aria-label="Include twist right in imagination training">
+            </label>
+          </div>
+        </div>
+        </div>
+        <div class="training-entry">
+          <button class="training-launch" id="trainingButton" type="button">◎ &nbsp; Imagination training</button>
+          <section class="training-panel" id="trainingPanel" aria-live="polite" hidden>
+            <div id="trainingSetup">
+              <h3>Choose how many moves to remember</h3>
+              <p class="training-copy">Watch the cube make random moves, remember where the colors end up, then test your mental picture.</p>
+              <div class="move-choices" aria-label="Number of random moves" style="margin-top: 11px;">
+                <button class="choice-button" type="button" data-move-count="1">1 move</button>
+                <button class="choice-button" type="button" data-move-count="2">2 moves</button>
+                <button class="choice-button" type="button" data-move-count="3">3 moves</button>
+              </div>
+            </div>
+            <div id="trainingMoving" hidden>
+              <h3>Watch the sequence</h3>
+              <p class="training-copy">Remember each move shown beneath the cube. The color questions will begin when the cube stops.</p>
+            </div>
+            <div id="trainingQuiz" hidden>
+              <div class="question-header">
+                <span class="color-swatch" id="questionSwatch" aria-hidden="true"></span>
+                <div class="question-text">
+                  <strong id="questionPrompt">Where is this color?</strong>
+                  <span>Click the side of the unfolded cube where it belongs.</span>
+                </div>
+              </div>
+              <div class="quiz-actions">
+                <span class="quiz-progress" id="quizProgress">Question 1 of 6 · Score: 0</span>
+                <button class="quiz-next" id="nextQuestionButton" type="button" hidden>Next question</button>
+              </div>
+              <p class="quiz-feedback" id="quizFeedback" aria-live="polite">Choose a side on the unfolded cube.</p>
+            </div>
+            <div id="trainingComplete" hidden>
+              <h3>Training complete!</h3>
+              <p class="training-copy" id="finalScore">Your score: 0 out of 6.</p>
+              <p class="training-copy">The unfolded cube now shows all six colors in their final positions. Press Reset cube to start over.</p>
+            </div>
+          </section>
+        </div>
+        <div class="footer-row">
+          <p class="tip">Moves can be combined. Try a few in a row, then reset.</p>
+          <button class="reset" id="resetButton" type="button"><span class="glyph" aria-hidden="true">↺</span>Reset cube</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // The orientation matrix maps each face's original direction to its current direction.
+    // A move is multiplied on the left so it acts around the viewer's fixed axes.
+    const cube = document.getElementById('cube');
+    const cubeNet = document.getElementById('cubeNet');
+    const moveCount = document.getElementById('moveCount');
+    const lastMove = document.getElementById('lastMove');
+    const resetButton = document.getElementById('resetButton');
+    const trainingButton = document.getElementById('trainingButton');
+    const trainingPanel = document.getElementById('trainingPanel');
+    const trainingSetup = document.getElementById('trainingSetup');
+    const trainingMoving = document.getElementById('trainingMoving');
+    const trainingQuiz = document.getElementById('trainingQuiz');
+    const trainingComplete = document.getElementById('trainingComplete');
+    const questionSwatch = document.getElementById('questionSwatch');
+    const questionPrompt = document.getElementById('questionPrompt');
+    const quizProgress = document.getElementById('quizProgress');
+    const quizFeedback = document.getElementById('quizFeedback');
+    const nextQuestionButton = document.getElementById('nextQuestionButton');
+    const finalScore = document.getElementById('finalScore');
+    const moveSequence = document.getElementById('moveSequence');
+    const directionControls = document.getElementById('directionControls');
+
+    const identity = () => [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ];
+
+    let orientation = identity();
+    let moves = 0;
+    let trainingActive = false;
+    let trainingStage = 'idle';
+    let trainingRunToken = 0;
+    let trainingScore = 0;
+    let questionIndex = 0;
+    let questionOrder = [];
+    let currentQuestion = null;
+    let questionAnswered = false;
+    const revealedPositions = new Set();
+
+    // Each original face has a fixed color and a direction in cube space.
+    const faces = [
+      { name: 'front',  direction: [0, 0, 1],  color: '#55c7ed', colorName: 'cyan' },
+      { name: 'back',   direction: [0, 0, -1], color: '#ff9e62', colorName: 'orange' },
+      { name: 'right',  direction: [1, 0, 0],  color: '#fa6f83', colorName: 'coral' },
+      { name: 'left',   direction: [-1, 0, 0], color: '#ad91f4', colorName: 'purple' },
+      { name: 'top',    direction: [0, -1, 0], color: '#8bdaa7', colorName: 'green' },
+      { name: 'bottom', direction: [0, 1, 0],  color: '#f5d36f', colorName: 'yellow' }
+    ];
+    const netCells = [...document.querySelectorAll('.net-cell')];
+
+    function multiply(a, b) {
+      return a.map((row) => row.map((_, c) =>
+        row.reduce((sum, value, k) => sum + value * b[k][c], 0)
+      ));
+    }
+
+    function rotationMatrix(axis, degrees) {
+      const angle = degrees * Math.PI / 180;
+      const c = Math.cos(angle);
+      const s = Math.sin(angle);
+
+      // CSS coordinates: x right, y down, z toward the viewer.
+      if (axis === 'x') return [
+        [1, 0, 0],
+        [0, c, -s],
+        [0, s, c]
+      ];
+      if (axis === 'y') return [
+        [c, 0, s],
+        [0, 1, 0],
+        [-s, 0, c]
+      ];
+      return [
+        [c, -s, 0],
+        [s, c, 0],
+        [0, 0, 1]
+      ];
+    }
+
+    const movesByName = {
+      tiltLeft:     { axis: 'z', degrees: -90, label: 'Tilt left', type: 'tilt', direction: 'to the left' },
+      tiltRight:    { axis: 'z', degrees:  90, label: 'Tilt right', type: 'tilt', direction: 'to the right' },
+      tiltForward:  { axis: 'x', degrees: -90, label: 'Tilt forward', type: 'tilt', direction: 'forward' },
+      tiltBackward: { axis: 'x', degrees:  90, label: 'Tilt backward', type: 'tilt', direction: 'backward' },
+      twistLeft:    { axis: 'y', degrees: -90, label: 'Twist left', type: 'twist', direction: 'to the left' },
+      twistRight:   { axis: 'y', degrees:  90, label: 'Twist right', type: 'twist', direction: 'to the right' }
+    };
+
+    function getColorsByPosition() {
+      const colorAtPosition = {};
+
+      for (const face of faces) {
+        const currentDirection = face.direction.map((_, row) =>
+          Math.round(orientation[row].reduce((sum, value, column) =>
+            sum + value * face.direction[column], 0
+          ))
+        );
+        const position = faces.find((candidate) =>
+          candidate.direction.every((value, index) => value === currentDirection[index])
+        );
+        if (position) colorAtPosition[position.name] = face;
+      }
+      return colorAtPosition;
+    }
+
+    function updateNet() {
+      const colorAtPosition = getColorsByPosition();
+
+      netCells.forEach((cell) => {
+        const position = cell.dataset.position;
+        const face = colorAtPosition[position];
+        const shouldReveal = !trainingActive || revealedPositions.has(position) || trainingStage === 'complete';
+        cell.classList.toggle('revealed', shouldReveal);
+        cell.style.backgroundColor = shouldReveal && face ? face.color : '';
+        cell.setAttribute('aria-label', shouldReveal && face
+          ? `${position} side, ${face.colorName}`
+          : `${position} side, color hidden`);
+      });
+    }
+
+    function render() {
+      // matrix3d() takes its values column by column.
+      const m = orientation;
+      const values = [
+        m[0][0], m[1][0], m[2][0], 0,
+        m[0][1], m[1][1], m[2][1], 0,
+        m[0][2], m[1][2], m[2][2], 0,
+        0, 0, 0, 1
+      ];
+      cube.style.transform = `matrix3d(${values.join(',')})`;
+      updateNet();
+    }
+
+    function applyMove(name) {
+      const move = movesByName[name];
+      if (!move) return;
+      orientation = multiply(rotationMatrix(move.axis, move.degrees), orientation);
+      render();
+      moves += 1;
+      moveCount.textContent = String(moves);
+      lastMove.textContent = `${move.label} · 90°`;
+    }
+
+    function setDirectionalControlsLocked(locked) {
+      directionControls.classList.toggle('is-locked', locked);
+      document.querySelectorAll('[data-move]').forEach((button) => {
+        button.disabled = locked;
+      });
+      document.querySelectorAll('.training-move-checkbox').forEach((checkbox) => {
+        checkbox.disabled = locked;
+      });
+    }
+
+    function shuffle(items) {
+      const result = [...items];
+      for (let i = result.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    }
+
+    function sequenceSentence(moveName, index) {
+      const move = movesByName[moveName];
+      const opener = index === 0 ? 'First' : index === 1 ? 'Then' : 'After that';
+      return `${opener} the cube ${move.type === 'tilt' ? 'tilts' : 'twists'} ${move.direction}.`;
+    }
+
+    function wait(milliseconds) {
+      return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+    }
+
+    function enterTraining() {
+      trainingActive = true;
+      trainingStage = 'setup';
+      trainingRunToken += 1;
+      trainingScore = 0;
+      questionIndex = 0;
+      questionOrder = [];
+      currentQuestion = null;
+      questionAnswered = false;
+      revealedPositions.clear();
+      cube.classList.remove('is-greyed');
+      moveSequence.innerHTML = '';
+      moveSequence.hidden = true;
+      trainingSetup.hidden = false;
+      trainingMoving.hidden = true;
+      trainingQuiz.hidden = true;
+      trainingComplete.hidden = true;
+      trainingPanel.hidden = false;
+      trainingButton.disabled = true;
+      trainingButton.textContent = '◎  Imagination training active';
+      cubeNet.classList.add('is-training');
+      cubeNet.classList.remove('is-quiz');
+      setDirectionalControlsLocked(true);
+      netCells.forEach((cell) => { cell.disabled = true; });
+      lastMove.textContent = 'Choose 1, 2 or 3 random moves';
+      updateNet();
+    }
+
+    async function startTrainingRound(count) {
+      if (!trainingActive || trainingStage !== 'setup') return;
+      trainingStage = 'moving';
+      const runToken = ++trainingRunToken;
+      trainingSetup.hidden = true;
+      trainingMoving.hidden = false;
+      trainingQuiz.hidden = true;
+      trainingComplete.hidden = true;
+
+      const moveNames = [...document.querySelectorAll('.training-move-checkbox:checked')]
+        .map((checkbox) => checkbox.dataset.trainingMove);
+      if (moveNames.length === 0) {
+        trainingStage = 'setup';
+        trainingSetup.hidden = false;
+        trainingMoving.hidden = true;
+        lastMove.textContent = 'Select at least one move for training';
+        return;
+      }
+      const chosenMoves = [];
+      while (chosenMoves.length < count) {
+        const candidate = moveNames[Math.floor(Math.random() * moveNames.length)];
+        // Avoid an immediate undo so each practice sequence changes the view.
+        const inversePairs = {
+          tiltLeft: 'tiltRight', tiltRight: 'tiltLeft',
+          tiltForward: 'tiltBackward', tiltBackward: 'tiltForward',
+          twistLeft: 'twistRight', twistRight: 'twistLeft'
+        };
+        if (chosenMoves.length === 0 || inversePairs[chosenMoves[chosenMoves.length - 1]] !== candidate) {
+          chosenMoves.push(candidate);
+        }
+      }
+
+      moveSequence.innerHTML = '';
+      chosenMoves.forEach((name, index) => {
+        const item = document.createElement('li');
+        item.textContent = sequenceSentence(name, index);
+        moveSequence.appendChild(item);
+      });
+      moveSequence.hidden = false;
+      lastMove.textContent = 'Watch closely and remember each move';
+
+      for (const name of chosenMoves) {
+        if (runToken !== trainingRunToken) return;
+        applyMove(name);
+        await wait(790);
+      }
+      if (runToken !== trainingRunToken) return;
+
+      // Once the final rotation has settled, grey out the 3D cube before
+      // revealing the first color-location question.
+      cube.classList.add('is-greyed');
+      await wait(420);
+      if (runToken !== trainingRunToken) return;
+      beginQuiz();
+    }
+
+    function beginQuiz() {
+      trainingStage = 'quiz';
+      trainingSetup.hidden = true;
+      trainingMoving.hidden = true;
+      trainingQuiz.hidden = false;
+      trainingComplete.hidden = true;
+      cubeNet.classList.add('is-training', 'is-quiz');
+      questionOrder = shuffle(faces);
+      questionIndex = 0;
+      trainingScore = 0;
+      revealedPositions.clear();
+      updateNet();
+      askQuestion();
+    }
+
+    function askQuestion() {
+      if (questionIndex >= questionOrder.length) {
+        finishTraining();
+        return;
+      }
+      currentQuestion = questionOrder[questionIndex];
+      questionAnswered = false;
+      questionSwatch.style.backgroundColor = currentQuestion.color;
+      questionPrompt.textContent = `Where is the ${currentQuestion.colorName} face?`;
+      quizProgress.textContent = `Question ${questionIndex + 1} of ${questionOrder.length} · Score: ${trainingScore}`;
+      quizFeedback.textContent = 'Choose a side on the unfolded cube.';
+      quizFeedback.className = 'quiz-feedback';
+      nextQuestionButton.hidden = true;
+      netCells.forEach((cell) => { cell.disabled = false; });
+      lastMove.textContent = `Find the ${currentQuestion.colorName} face`;
+    }
+
+    function answerQuestion(position) {
+      if (trainingStage !== 'quiz' || questionAnswered || !currentQuestion) return;
+      questionAnswered = true;
+      const colorsByPosition = getColorsByPosition();
+      const actualFace = colorsByPosition[position];
+      const correctEntry = Object.entries(colorsByPosition).find(([, face]) => face.name === currentQuestion.name);
+      const correctPosition = correctEntry ? correctEntry[0] : '';
+      const isCorrect = position === correctPosition;
+
+      // Reveal only the square the player selected. Never reveal the target's actual square.
+      revealedPositions.add(position);
+      if (isCorrect) {
+        trainingScore += 1;
+      } else {
+        // The color revealed by a wrong guess has now been identified, so skip
+        // its question if it was due to appear later in this round.
+        questionOrder = questionOrder.filter((face, index) =>
+          index <= questionIndex || face.name !== actualFace.name
+        );
+      }
+      updateNet();
+
+      netCells.forEach((cell) => { cell.disabled = true; });
+      if (isCorrect) {
+        quizFeedback.textContent = `Correct! The ${position} side has the ${currentQuestion.colorName} face. +1 point.`;
+        quizFeedback.className = 'quiz-feedback correct';
+      } else {
+        quizFeedback.textContent = `Not quite. The ${position} side has ${actualFace.colorName}.`;
+        quizFeedback.className = 'quiz-feedback incorrect';
+      }
+      quizProgress.textContent = `Question ${questionIndex + 1} of ${questionOrder.length} · Score: ${trainingScore}`;
+      nextQuestionButton.textContent = questionIndex === questionOrder.length - 1 ? 'See results' : 'Next question';
+      nextQuestionButton.hidden = false;
+      lastMove.textContent = isCorrect ? 'Correct answer' : 'Answer revealed';
+    }
+
+    function finishTraining() {
+      trainingStage = 'complete';
+      trainingQuiz.hidden = true;
+      trainingComplete.hidden = false;
+      trainingScore = Math.max(0, trainingScore);
+      finalScore.textContent = `Your score: ${trainingScore} out of ${questionOrder.length}.`;
+      revealedPositions.clear();
+      netCells.forEach((cell) => { cell.disabled = true; });
+      cubeNet.classList.remove('is-training', 'is-quiz');
+      updateNet();
+      lastMove.textContent = 'Imagination training complete';
+    }
+
+    function resetCube() {
+      trainingRunToken += 1;
+      trainingActive = false;
+      trainingStage = 'idle';
+      trainingScore = 0;
+      questionIndex = 0;
+      questionOrder = [];
+      currentQuestion = null;
+      questionAnswered = false;
+      revealedPositions.clear();
+      cube.classList.remove('is-greyed');
+      orientation = identity();
+      render();
+      moves = 0;
+      moveCount.textContent = '0';
+      lastMove.textContent = 'Back to the starting position';
+      trainingPanel.hidden = true;
+      trainingSetup.hidden = false;
+      trainingMoving.hidden = true;
+      trainingQuiz.hidden = true;
+      trainingComplete.hidden = true;
+      moveSequence.innerHTML = '';
+      moveSequence.hidden = true;
+      cubeNet.classList.remove('is-training', 'is-quiz');
+      trainingButton.disabled = false;
+      trainingButton.textContent = '◎  Imagination training';
+      setDirectionalControlsLocked(false);
+      netCells.forEach((cell) => { cell.disabled = true; });
+      updateNet();
+    }
+
+    netCells.forEach((cell) => {
+      cell.addEventListener('click', () => answerQuestion(cell.dataset.position));
+    });
+
+    document.querySelectorAll('[data-move]').forEach((button) => {
+      button.addEventListener('click', () => applyMove(button.dataset.move));
+    });
+
+    document.querySelectorAll('.training-move-checkbox').forEach((checkbox) => {
+      checkbox.addEventListener('change', () => {
+        const selectedCount = document.querySelectorAll('.training-move-checkbox:checked').length;
+        if (selectedCount === 0) {
+          checkbox.checked = true;
+          lastMove.textContent = 'At least one move must be selected for training';
+        }
+      });
+    });
+
+    document.querySelectorAll('[data-move-count]').forEach((button) => {
+      button.addEventListener('click', () => startTrainingRound(Number(button.dataset.moveCount)));
+    });
+
+    trainingButton.addEventListener('click', enterTraining);
+    nextQuestionButton.addEventListener('click', () => {
+      if (!questionAnswered) return;
+      questionIndex += 1;
+      askQuestion();
+    });
+    resetButton.addEventListener('click', resetCube);
+
+    render();
+  </script>
+</body>
+</html>
